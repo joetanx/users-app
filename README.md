@@ -112,13 +112,24 @@ password_encryption = scram-sha-256
 ⋮
 ```
 
+Restart PostgreSQL
+
+```
+systemctl restart postgresql
+```
+
 #### 1.2.4. Setup user
 
 ```
 cd /var/lib/pgsql
-sudo -u postgres createuser -s -w node
-sudo -u postgres psql -c "ALTER USER node WITH PASSWORD 'password';"
-sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE users TO node;"
+sudo -u postgres psql -c "CREATE ROLE node WITH LOGIN PASSWORD 'password';"
+sudo -u postgres psql -d users -c "GRANT ALL ON users TO node;"
 rm -f /var/lib/pgsql/.psql_history /root/.psql_history
 cd ~
+```
+
+Resetting user password (if needed)
+
+```
+sudo -u postgres psql -c "ALTER USER node WITH PASSWORD 'password';"
 ```
