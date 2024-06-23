@@ -1,11 +1,18 @@
-## 1. Prepare Databases
+## 1. Setup
 
 ### 1.1. MySQL
+
+#### 1.1.1. Install
 
 ```
 yum -y install mysql-server
 systemctl enable --now mysqld
 firewall-cmd --add-service mysql --permanent && firewall-cmd --reload
+```
+
+#### 1.1.2. Populate database
+
+```
 curl -sLo /tmp/users-my.sql https://github.com/joetanx/users-app/raw/main/users-my.sql
 mysql -u root < /tmp/users-my.sql
 mysql -u root -e "SELECT id,firstName,lastName,email,mobile FROM users.users ORDER BY RAND() LIMIT 0,1;"
@@ -13,17 +20,35 @@ mysql -u root -e "SELECT id,firstName,lastName,email,mobile FROM users.users WHE
 rm -f /tmp/users-my.sql
 ```
 
+#### 1.1.3. Setup user
+
+```
+mysql -u root -e "CREATE USER 'node'@'%' IDENTIFIED BY 'password';"
+mysql -u root -e "GRANT ALL PRIVILEGES ON users.* TO 'node'@'%';"
+rm -f /root/.mysql_history
+```
+
 ### 1.2. PostgreSQL
+
+#### 1.2.1. Install
 
 ```
 yum -y install postgresql-server postgresql-contrib
 postgresql-setup --initdb
 systemctl enable --now postgresql
 firewall-cmd --add-service postgresql --permanent && firewall-cmd --reload
+```
+
+#### 1.2.2. Populate database
+
+```
+cd /var/lib/pgsql
 curl -sLo /tmp/users-pg.sql https://github.com/joetanx/users-app/raw/main/users-pg.sql
 sudo -u postgres psql -d postgres -f /tmp/users-pg.sql
 sudo -u postgres psql -d users -c "SELECT id,firstName,lastName,email,mobile FROM users ORDER BY RANDOM() LIMIT 1 OFFSET 0;"
 sudo -u postgres psql -d users -c "SELECT id,firstName,lastName,email,mobile FROM users WHERE LOWER(firstName) LIKE '%jack%';"
+rm -f /tmp/users-pg.sql
+cd ~
 ```
 
 <details><summary>Manually create database, table and insert data</summary>
@@ -43,3 +68,57 @@ sudo -u postgres psql -d users -c "INSERT INTO users VALUES (DEFAULT,'Liam','Joh
 ```
 
 </details>
+
+#### 1.2.3. Configure authentication
+
+Configure `/var/lib/pgsql/data/pg_hba.conf` to use password authentication over `scram-sha-256` hashing
+
+```
+⋮
+# TYPE  DATABASE        USER            ADDRESS                 METHOD
+
+# "local" is for Unix domain socket connections only
+local   all             all                                     peer
+# IPv4 local connections:
+host    all             all             0.0.0.0/0               scram-sha-256
+# IPv6 local connections:
+host    all             all             ::1/128                 ident
+# Allow replication connections from localhost, by a user with the
+# replication privilege.
+local   replication     all                                     peer
+⋮
+```
+
+Configure `/var/lib/pgsql/data/postgresql.conf` to listen on all addresses and enable `scram-sha-256` hashing
+
+```
+⋮
+#------------------------------------------------------------------------------
+# CONNECTIONS AND AUTHENTICATION
+#------------------------------------------------------------------------------
+
+# - Connection Settings -
+
+listen_addresses = '0.0.0.0'            # what IP address(es) to listen on;
+                                        # comma-separated list of addresses;
+                                        # defaults to 'localhost'; use '*' for all
+                                        # (change requires restart)
+#port = 5432                            # (change requires restart)
+max_connections = 100                   # (change requires restart)
+⋮
+# - Authentication -
+⋮
+password_encryption = scram-sha-256
+⋮
+```
+
+#### 1.2.4. Setup user
+
+```
+cd /var/lib/pgsql
+sudo -u postgres createuser -s -w node
+sudo -u postgres psql -c "ALTER USER node WITH PASSWORD 'password';"
+sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE users TO node;"
+rm -f /var/lib/pgsql/.psql_history /root/.psql_history
+cd ~
+```
